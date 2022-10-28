@@ -106,6 +106,9 @@ defmodule RetWeb.OIDCAuthChannel do
       permitted_claims = RemoteOIDCClient.get_permitted_claims()
       filtered_claims = :maps.filter(fn key, _val -> key in permitted_claims end, all_claims)
 
+      # AVN: Add OIDC access token to claims for passthrough authentication
+      filtered_claims = Map.put(filtered_claims, :access_token, access_token)
+
       broadcast_credentials_and_payload(
         identifier_hash,
         %{oidc: filtered_claims},
