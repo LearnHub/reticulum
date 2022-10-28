@@ -1,5 +1,5 @@
 pkg_name=reticulum
-pkg_origin=mozillareality
+pkg_origin=avn
 pkg_version="1.0.1"
 pkg_maintainer="Mozilla Mixed Reality <mixreality@mozilla.com>"
 pkg_upstream_url="http://github.com/mozilla/reticulum"
