@@ -321,7 +321,8 @@ defmodule RetWeb.PageController do
           # Allow iframe embedding
           conn |> delete_resp_header("x-frame-options")
         else
-          conn
+          # AVN: Always allow iframe embedding
+          conn |> delete_resp_header("x-frame-options")
         end
 
       render_hub_content(conn, hub, subresource |> Enum.at(0))
