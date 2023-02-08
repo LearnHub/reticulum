@@ -3,13 +3,20 @@ defmodule RetWeb.Router do
   use Plug.ErrorHandler
   use Sentry.Plug
 
+  # AVN: Always allow iframe embedding
+  defp allow_iframe_embedding(conn, _opts) do
+    conn |> delete_resp_header("x-frame-options")
+  end
+
   pipeline :secure_headers do
     plug(:put_secure_browser_headers)
+    plug(:allow_iframe_embedding)
     plug(RetWeb.Plugs.AddCSP)
   end
 
   pipeline :strict_secure_headers do
     plug(:put_secure_browser_headers)
+    plug(:allow_iframe_embedding)
     plug(RetWeb.Plugs.AddCSP, strict: true)
   end
 

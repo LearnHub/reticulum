@@ -167,9 +167,7 @@ defmodule RetWeb.PageController do
 
   def render_for_path("/", params, conn) do
     if !Enum.empty?(params) || Ret.Account.has_accounts?() do
-      # AVN: Allow iframe embedding for index file
-      conn |> delete_resp_header("x-frame-options")
-      conn |> render_index    
+      conn |> render_index
     else
       conn |> redirect(to: "/admin")
     end
@@ -323,8 +321,7 @@ defmodule RetWeb.PageController do
           # Allow iframe embedding
           conn |> delete_resp_header("x-frame-options")
         else
-          # AVN: Always allow iframe embedding for rooms
-          conn |> delete_resp_header("x-frame-options")
+          conn
         end
 
       render_hub_content(conn, hub, subresource |> Enum.at(0))
