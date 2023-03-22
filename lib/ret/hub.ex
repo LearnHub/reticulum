@@ -1051,9 +1051,7 @@ defimpl Canada.Can, for: Atom do
   ]
   # Object permissions for anonymous users are based on member permission settings
   def can?(_account, action, hub) when action in @object_actions do
-    # AVN: Anonymous users cannot do anything that could be offensive
-    # hub |> Hub.has_member_permission?(action)
-    false
+    hub |> Hub.has_member_permission?(action)
   end
 
   # Create hubs
