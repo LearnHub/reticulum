@@ -2,6 +2,7 @@
 healthcheck(){
     while true; do (echo -e 'HTTP/1.1 200 OK\r\n\r\n 1') | nc -lp 1111 > /dev/null; done
 }
+echo "RELEASE_VERSION=$RELEASE_VERSION"
 echo "update runtime configs into config.toml" 
 cp /home/ret/config.toml.template config.toml
 prefix="turkeyCfg_"; for var in $(compgen -e); do [[ $var == $prefix* ]] && sed -i "s/<${var#$prefix}>/${!var//\//\\\/}/g" config.toml; done 
