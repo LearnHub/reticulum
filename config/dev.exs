@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 # NOTE: this file contains some security keys/certs that are *not* secrets, and are only used for local development purposes.
 
@@ -73,14 +73,11 @@ config :logger, :console, format: "[$level] $message\n"
 # in production as building large stacktraces may be expensive.
 config :phoenix, :stacktrace_depth, 20
 
-env_db_host = "#{System.get_env("DB_HOST")}"
-
 # Configure your database
 config :ret, Ret.Repo,
   username: "postgres",
   password: "postgres",
   database: "ret_dev",
-  hostname: if(env_db_host == "", do: "localhost", else: env_db_host),
   template: "template0",
   pool_size: 10
 
@@ -88,7 +85,6 @@ config :ret, Ret.SessionLockRepo,
   username: "postgres",
   password: "postgres",
   database: "ret_dev",
-  hostname: if(env_db_host == "", do: "localhost", else: env_db_host),
   template: "template0",
   pool_size: 10
 
@@ -122,15 +118,7 @@ config :ret,
   upload_encryption_key: "a8dedeb57adafa7821027d546f016efef5a501bd",
   bot_access_key: ""
 
-hubs_admin_internal_hostname = System.get_env("HUBS_ADMIN_INTERNAL_HOSTNAME") || host
-hubs_client_internal_hostname = System.get_env("HUBS_CLIENT_INTERNAL_HOSTNAME") || host
-spoke_internal_hostname = System.get_env("SPOKE_INTERNAL_HOSTNAME") || host
-
-config :ret, Ret.PageOriginWarmer,
-  admin_page_origin: "https://#{hubs_admin_internal_hostname}:8989",
-  hubs_page_origin: "https://#{hubs_client_internal_hostname}:8080",
-  spoke_page_origin: "https://#{spoke_internal_hostname}:9090",
-  insecure_ssl: true
+config :ret, Ret.PageOriginWarmer, insecure_ssl: true
 
 config :ret, Ret.HttpUtils, insecure_ssl: true
 
@@ -145,7 +133,8 @@ config :ret, Ret.MediaResolver,
   ytdl_host: nil,
   photomnemonic_endpoint: "https://uvnsm9nzhe.execute-api.us-west-1.amazonaws.com/public"
 
-config :ret, Ret.Speelycaptor, speelycaptor_endpoint: "https://1dhaogh2hd.execute-api.us-west-1.amazonaws.com/public"
+config :ret, Ret.Speelycaptor,
+  speelycaptor_endpoint: "https://1dhaogh2hd.execute-api.us-west-1.amazonaws.com/public"
 
 config :ret, Ret.Storage,
   host: "https://#{host}:4000",
@@ -154,9 +143,7 @@ config :ret, Ret.Storage,
 
 asset_hosts =
   "https://localhost:4000 https://localhost:8080 " <>
-    "https://#{host}:4000 https://#{host}:8080 https://#{host}:3000 https://#{host}:8989 https://#{host}:9090 https://#{
-      cors_proxy_host
-    }:4000 " <>
+    "https://#{host}:4000 https://#{host}:8080 https://#{host}:3000 https://#{host}:8989 https://#{host}:9090 https://#{cors_proxy_host}:4000 " <>
     "https://assets-prod.reticulum.io https://asset-bundles-dev.reticulum.io https://asset-bundles-prod.reticulum.io"
 
 websocket_hosts =
@@ -178,8 +165,6 @@ config :ret, Ret.Mailer, adapter: Bamboo.LocalAdapter
 
 config :ret, RetWeb.Email, from: "info@hubs-mail.com"
 
-config :ret, Ret.PermsToken, perms_key: (System.get_env("PERMS_KEY") || "") |> String.replace("\\n", "\n")
-
 config :ret, Ret.OAuthToken, oauth_token_key: ""
 
 config :ret, Ret.Guardian,
@@ -190,7 +175,8 @@ config :ret, Ret.Guardian,
 
 config :web_push_encryption, :vapid_details,
   subject: "mailto:admin@mozilla.com",
-  public_key: "BAb03820kHYuqIvtP6QuCKZRshvv_zp5eDtqkuwCUAxASBZMQbFZXzv8kjYOuLGF16A3k8qYnIN10_4asB-Aw7w",
+  public_key:
+    "BAb03820kHYuqIvtP6QuCKZRshvv_zp5eDtqkuwCUAxASBZMQbFZXzv8kjYOuLGF16A3k8qYnIN10_4asB-Aw7w",
   # This config value is for local development only.
   private_key: "w76tXh1d3RBdVQ5eINevXRwW6Ow6uRcBa8tBDOXfmxM"
 
@@ -204,11 +190,6 @@ config :sentry,
 
 config :ret, Ret.Habitat, ip: "127.0.0.1", http_port: 9631
 
-dialog_hostname = System.get_env("DIALOG_HOSTNAME") || "dev-janus.reticulum.io"
-dialog_port = String.to_integer(System.get_env("DIALOG_PORT") || "443")
-
-config :ret, Ret.JanusLoadStatus, default_janus_host: dialog_hostname, janus_port: dialog_port
-
 config :ret, Ret.RoomAssigner, balancer_weights: [{600, 1}, {300, 50}, {0, 500}]
 
 config :ret, RetWeb.PageController,
@@ -220,14 +201,7 @@ config :ret, Ret.HttpUtils, insecure_ssl: true
 
 config :ret, Ret.Meta, phx_host: host
 
-config :ret, Ret.Locking,
-  lock_timeout_ms: 1000 * 60 * 15,
-  session_lock_db: [
-    username: "postgres",
-    password: "postgres",
-    database: "ret_dev",
-    hostname: if(env_db_host == "", do: "localhost", else: env_db_host)
-  ]
+config :ret, Ret.Locking, lock_timeout_ms: 1000 * 60 * 15
 
 config :ret, Ret.Repo.Migrations.AdminSchemaInit, postgrest_password: "password"
 config :ret, Ret.StatsJob, node_stats_enabled: false, node_gauges_enabled: false

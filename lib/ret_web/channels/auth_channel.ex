@@ -6,7 +6,7 @@ defmodule RetWeb.AuthChannel do
 
   alias Ret.{Statix, LoginToken, Account, Crypto, AppConfig}
 
-  intercept(["auth_credentials"])
+  intercept ["auth_credentials"]
 
   def join("auth:" <> _topic_key, _payload, socket) do
     # Expire channel in 5 minutes
@@ -30,9 +30,14 @@ defmodule RetWeb.AuthChannel do
 
       if !account_disabled && (can_create_email_accounts || !!account) do
         # Create token + send email
-        %LoginToken{token: token, payload_key: payload_key} = LoginToken.new_login_token_for_email(email)
+        %LoginToken{token: token, payload_key: payload_key} =
+          LoginToken.new_login_token_for_email(email)
 
-        encrypted_payload = %{"email" => email} |> Poison.encode!() |> Crypto.encrypt(payload_key) |> :base64.encode()
+        encrypted_payload =
+          %{"email" => email}
+          |> Poison.encode!()
+          |> Crypto.encrypt(payload_key)
+          |> :base64.encode()
 
         signin_args = %{
           auth_topic: socket.topic,
@@ -64,7 +69,8 @@ defmodule RetWeb.AuthChannel do
 
     case LoginToken.lookup_by_token(token) do
       %LoginToken{identifier_hash: identifier_hash, payload_key: payload_key} ->
-        decrypted_payload = auth_payload |> :base64.decode() |> Ret.Crypto.decrypt(payload_key) |> Poison.decode!()
+        decrypted_payload =
+          auth_payload |> :base64.decode() |> Ret.Crypto.decrypt(payload_key) |> Poison.decode!()
 
         broadcast_credentials_and_payload(identifier_hash, decrypted_payload, socket)
 

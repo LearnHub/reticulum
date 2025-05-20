@@ -99,24 +99,22 @@ defmodule RetWeb.Plugs.AddCSP do
     is_subdomain = ret_host |> String.split(".") |> length > 2
     link_url = config_url(:link_url)
     # legacy
-    thumbnail_url = config_url(:thumbnail_url) || cors_proxy_url |> String.replace("cors-proxy", "nearspark")
+    thumbnail_url =
+      config_url(:thumbnail_url) || cors_proxy_url |> String.replace("cors-proxy", "nearspark")
 
     # TODO: The https janus port CSP rules (including the default) can be removed after dialog is deployed,
     # since they are used to snoop and see what SFU it is.
     default_janus_csp_rule =
       if default_janus_host != nil && String.length(String.trim(default_janus_host)) > 0,
-        do: "wss://#{default_janus_host}:#{janus_port} https://#{default_janus_host}:#{janus_port}",
+        do:
+          "wss://#{default_janus_host}:#{janus_port} https://#{default_janus_host}:#{janus_port}",
         else: ""
 
     ret_direct_connect =
       if is_subdomain do
-        "https://*.#{ret_domain}:#{ret_port} wss://*.#{ret_domain}:#{ret_port} wss://*.#{ret_domain}:#{janus_port} https://*.#{
-          ret_domain
-        }:#{janus_port} #{default_janus_csp_rule}"
+        "https://*.#{ret_domain}:#{ret_port} wss://*.#{ret_domain}:#{ret_port} wss://*.#{ret_domain}:#{janus_port} https://*.#{ret_domain}:#{janus_port} #{default_janus_csp_rule}"
       else
-        "https://#{ret_host}:#{ret_port} wss://#{ret_host}:#{janus_port} wss://#{ret_host}:#{ret_port} https://#{
-          ret_host
-        }:#{janus_port} #{default_janus_csp_rule}"
+        "https://#{ret_host}:#{ret_port} wss://#{ret_host}:#{janus_port} wss://#{ret_host}:#{ret_port} https://#{ret_host}:#{janus_port} #{default_janus_csp_rule}"
       end
 
     %{
@@ -198,7 +196,8 @@ defmodule RetWeb.Plugs.AddCSP do
         link_url,
         ret_direct_connect,
         storage_url,
-        thumbnail_url
+        thumbnail_url,
+        "https://raw.githubusercontent.com"
       ],
       "img-src" => [
         "'self'",

@@ -17,6 +17,7 @@ defmodule RetWeb.PageController do
 
   alias Plug.Conn
   import Ret.ConnUtils
+  import Ret.HttpUtils
 
   ##
   # NOTE: In addition to adding a route, you must add static html pages to the page_origin_warmer.ex
@@ -63,11 +64,19 @@ defmodule RetWeb.PageController do
   defp render_scene_content(%t{} = scene, conn) when t in [Scene, SceneListing] do
     {app_config, app_config_script} = generate_app_config()
 
+    app_name = app_config["translations"]["en"]["app-full-name"] || app_config["translations"]["en"]["app-name"] || RetWeb.Endpoint.host()
     scene_meta_tags =
       Phoenix.View.render_to_string(RetWeb.PageView, "scene-meta.html",
         scene: scene,
         ret_meta: Ret.Meta.get_meta(include_repo: false),
         translations: app_config["translations"]["en"],
+        title: join_smart([ scene.name, app_name ]),
+        name: scene.name,
+        description: join_smart([
+          scene.description,
+          "A scene you can use in the #{app_name} immersive spaces and others powered by Hubs",
+          app_config["translations"]["en"]["app-description"]
+        ]) |> String.replace("\\n", " "),
         app_config_script: {:safe, app_config_script |> with_script_tags},
         extra_script: {:safe, get_extra_script(:scene) |> with_script_tags},
         extra_html: {:safe, get_extra_html(:scene) || ""}
@@ -96,11 +105,16 @@ defmodule RetWeb.PageController do
   defp render_avatar_content(%t{} = avatar, conn) when t in [Avatar, AvatarListing] do
     {app_config, app_config_script} = generate_app_config()
 
+    app_name = app_config["translations"]["en"]["app-full-name"] || app_config["translations"]["en"]["app-name"] || RetWeb.Endpoint.host()
     avatar_meta_tags =
       Phoenix.View.render_to_string(RetWeb.PageView, "avatar-meta.html",
         avatar: avatar,
+        title: join_smart([avatar.name, app_name]),
+        name: avatar.name,
+        description: "An avatar you can use in the #{app_name} immersive spaces and others powered by Hubs.",
         ret_meta: Ret.Meta.get_meta(include_repo: false),
         translations: app_config["translations"]["en"],
+        root_url: RetWeb.Endpoint.url(),
         app_config_script: {:safe, app_config_script |> with_script_tags},
         extra_script: {:safe, get_extra_script(:avatar) |> with_script_tags},
         extra_html: {:safe, get_extra_html(:avatar) || ""}
@@ -129,12 +143,21 @@ defmodule RetWeb.PageController do
   defp render_homepage_content(conn, nil = _public_room_id) do
     {app_config, app_config_script} = generate_app_config()
 
+    app_name = app_config["translations"]["en"]["app-full-name"] || app_config["translations"]["en"]["app-name"] || RetWeb.Endpoint.host()
+
     index_meta_tags =
       Phoenix.View.render_to_string(
         RetWeb.PageView,
         "index-meta.html",
         root_url: RetWeb.Endpoint.url(),
         translations: app_config["translations"]["en"],
+        app_name: app_name,
+        title: join_smart([app_name, app_config["translations"]["en"]["app-tagline"]]),
+        description: join_smart(
+          [app_config["translations"]["en"]["app-description"],
+          "Immersive spaces, right in your browser, powered by Hubs"
+        ]),
+        images: app_config["images"],
         app_config_script: {:safe, app_config_script |> with_script_tags},
         extra_script: {:safe, get_extra_script(:index) |> with_script_tags},
         extra_html: {:safe, get_extra_html(:index) || ""}
@@ -157,8 +180,11 @@ defmodule RetWeb.PageController do
   end
 
   # Allow loading homepage if auth_token is being used to log in
-  defp render_homepage_content(%Plug.Conn{query_params: %{"auth_token" => _auth_token}} = conn, _default_room_id),
-    do: render_homepage_content(conn, nil)
+  defp render_homepage_content(
+         %Plug.Conn{query_params: %{"auth_token" => _auth_token}} = conn,
+         _default_room_id
+       ),
+       do: render_homepage_content(conn, nil)
 
   defp render_homepage_content(conn, default_room_id) do
     hub = Hub |> Repo.get_by(hub_sid: default_room_id)
@@ -187,7 +213,7 @@ defmodule RetWeb.PageController do
     |> String.split("/")
     |> Enum.at(0)
     |> Avatar.avatar_or_avatar_listing_by_sid()
-    |> Repo.preload([:thumbnail_owned_file])
+    |> Repo.preload([:thumbnail_owned_file, :gltf_owned_file])
     |> render_avatar_content(conn)
   end
 
@@ -226,7 +252,8 @@ defmodule RetWeb.PageController do
   def render_for_path("/cloud", _params, conn), do: conn |> render_page("cloud.html")
   def render_for_path("/cloud/", _params, conn), do: conn |> render_page("cloud.html")
 
-  def render_for_path("/spoke", _params, conn), do: conn |> render_page("index.html", :spoke, "spoke-index-meta.html")
+  def render_for_path("/spoke", _params, conn),
+    do: conn |> render_page("index.html", :spoke, "spoke-index-meta.html")
 
   def render_for_path("/spoke/" <> _path, _params, conn),
     do: conn |> render_page("index.html", :spoke, "spoke-index-meta.html")
@@ -263,9 +290,11 @@ defmodule RetWeb.PageController do
             manifest =
               Phoenix.View.render_to_string(RetWeb.PageView, "manifest.webmanifest",
                 root_url: RetWeb.Endpoint.url(),
-                app_name: get_app_config_value("translations|en|app-name") || "",
-                app_description:
-                  (get_app_config_value("translations|en|app-description") || "") |> String.replace("\\n", " ")
+                app_name: get_app_config_value("translations|en|app-name") || RetWeb.Endpoint.host(),
+                app_description: join_smart([
+                  get_app_config_value("translations|en|app-description"),
+                  "Immersive spaces, right in your browser, powered by Hubs"
+                ]) |> String.replace("\\n", " ")
               )
 
             unless module_config(:skip_cache) do
@@ -300,7 +329,9 @@ defmodule RetWeb.PageController do
 
   def render_for_path("/robots.txt", _params, conn) do
     allow_crawlers = Application.get_env(:ret, RetWeb.Endpoint)[:allow_crawlers] || false
-    robots_txt = Phoenix.View.render_to_string(RetWeb.PageView, "robots.txt", allow_crawlers: allow_crawlers)
+
+    robots_txt =
+      Phoenix.View.render_to_string(RetWeb.PageView, "robots.txt", allow_crawlers: allow_crawlers)
 
     conn
     |> send_resp(200, robots_txt)
@@ -381,7 +412,8 @@ defmodule RetWeb.PageController do
     conn
     |> put_resp_header(
       "hub-name",
-      get_app_config_value("translations|en|app-full-name") || get_app_config_value("translations|en|app-name") || ""
+      get_app_config_value("translations|en|app-full-name") ||
+        get_app_config_value("translations|en|app-name") || RetWeb.Endpoint.host()
     )
     |> put_resp_header(
       "hub-entity-type",
@@ -398,7 +430,8 @@ defmodule RetWeb.PageController do
   end
 
   defp append_csp(conn, directive, source) do
-    csp_header = conn.resp_headers |> Enum.find(fn {key, _value} -> key == "content-security-policy" end)
+    csp_header =
+      conn.resp_headers |> Enum.find(fn {key, _value} -> key == "content-security-policy" end)
 
     new_directive = "#{directive} #{source}"
 
@@ -419,7 +452,15 @@ defmodule RetWeb.PageController do
   end
 
   def render_hub_content(conn, nil, _) do
-    conn |> send_resp(404, "Invalid URL.")
+    user_agent =
+      get_req_header(conn, "user-agent")
+      |> Enum.at(0)
+
+    if String.contains?(user_agent, "kube-probe") do
+      send_resp(conn, 200, "")
+    else
+      send_resp(conn, 404, "bad Room ID")
+    end
   end
 
   def render_hub_content(conn, hub, "objects.gltf") do
@@ -431,20 +472,44 @@ defmodule RetWeb.PageController do
   end
 
   def render_hub_content(conn, hub, _slug) do
-    hub = hub |> Repo.preload(scene: [:screenshot_owned_file], scene_listing: [:screenshot_owned_file])
+    hub =
+      hub
+      |> Repo.preload(scene: [:screenshot_owned_file], scene_listing: [:screenshot_owned_file])
 
     {app_config, app_config_script} = generate_app_config()
 
     {_, available_integrations_script} =
       Ret.Meta.available_integrations_meta() |> generate_config("AVAILABLE_INTEGRATIONS")
 
+    app_name = app_config["translations"]["en"]["app-name"] || RetWeb.Endpoint.host()
+    scene = hub.scene || hub.scene_listing
+    name = cond do
+      hub.name && scene && scene.name && scene.name != hub.name -> join_smart([hub.name, scene.name])
+      hub.name -> hub.name
+      scene && scene.name -> scene.name
+      true -> "a room on " <> app_name
+    end
     hub_meta_tags =
       Phoenix.View.render_to_string(RetWeb.PageView, "hub-meta.html",
         hub: hub,
-        scene: hub.scene,
+        scene: scene,
         ret_meta: Ret.Meta.get_meta(include_repo: false),
         available_integrations_script: {:safe, available_integrations_script |> with_script_tags},
         translations: app_config["translations"]["en"],
+        title: join_smart([hub.name, app_name]),
+        name: name,
+        description: join_smart([
+          hub.description,
+          "an immersive space in #{app_name}, right in your browser",
+          app_config["translations"]["en"]["app-description"],
+          "powered by Hubs."
+        ]) |> String.replace("\\n", " "),
+        description_social_media: join_smart([
+          "Join others in an immersive space in #{app_name}, right in your browser",
+          hub.description,
+          app_config["translations"]["en"]["app-description"],
+          "powered by Hubs."
+        ]) |> String.replace("\\n", " "),
         app_config_script: {:safe, app_config_script |> with_script_tags},
         extra_script: {:safe, get_extra_script(:room) |> with_script_tags},
         extra_html: {:safe, get_extra_html(:room) || ""}
@@ -542,7 +607,9 @@ defmodule RetWeb.PageController do
 
     meta_content =
       if meta_template do
-        Phoenix.View.render_to_string(RetWeb.PageView, meta_template, translations: app_config["translations"]["en"])
+        Phoenix.View.render_to_string(RetWeb.PageView, meta_template,
+          translations: app_config["translations"]["en"]
+        )
       else
         []
       end
@@ -568,7 +635,9 @@ defmodule RetWeb.PageController do
 
     meta_tags =
       if meta_template do
-        Phoenix.View.render_to_string(RetWeb.PageView, meta_template, translations: app_config["translations"]["en"])
+        Phoenix.View.render_to_string(RetWeb.PageView, meta_template,
+          translations: app_config["translations"]["en"]
+        )
       else
         []
       end
@@ -576,7 +645,9 @@ defmodule RetWeb.PageController do
     case try_chunks_for_page(conn, page, source) do
       {:ok, chunks} ->
         chunks_with_meta =
-          chunks |> List.insert_at(1, app_config_script |> with_script_tags) |> List.insert_at(1, meta_tags)
+          chunks
+          |> List.insert_at(1, app_config_script |> with_script_tags)
+          |> List.insert_at(1, meta_tags)
 
         conn
         |> append_script_csp(app_config_script)
@@ -613,7 +684,8 @@ defmodule RetWeb.PageController do
 
   defp imgproxy_proxy(%Conn{request_path: "/thumbnail/" <> encoded_url, query_string: qs} = conn) do
     with imgproxy_url <- Application.get_env(:ret, RetWeb.Endpoint)[:imgproxy_url],
-         [scheme, port, host] = [:scheme, :port, :host] |> Enum.map(&Keyword.get(imgproxy_url, &1)),
+         [scheme, port, host] =
+           [:scheme, :port, :host] |> Enum.map(&Keyword.get(imgproxy_url, &1)),
          %{"w" => width, "h" => height} <- qs |> URI.decode_query() do
       thumbnail_url = "#{scheme}://#{host}:#{port}//auto/#{width}/#{height}/sm/1/#{encoded_url}"
 
@@ -637,8 +709,11 @@ defmodule RetWeb.PageController do
     end
   end
 
-  defp cors_proxy(%Conn{request_path: "/" <> url, query_string: ""} = conn), do: cors_proxy(conn, url)
-  defp cors_proxy(%Conn{request_path: "/" <> url, query_string: qs} = conn), do: cors_proxy(conn, "#{url}?#{qs}")
+  defp cors_proxy(%Conn{request_path: "/" <> url, query_string: ""} = conn),
+    do: cors_proxy(conn, url)
+
+  defp cors_proxy(%Conn{request_path: "/" <> url, query_string: qs} = conn),
+    do: cors_proxy(conn, "#{url}?#{qs}")
 
   defp cors_proxy(conn, url) do
     %URI{authority: authority, host: host} = uri = URI.parse(url)
@@ -654,30 +729,41 @@ defmodule RetWeb.PageController do
 
       # Disallow CORS proxying unless request was made to the cors proxy url
       cors_proxy_url = Application.get_env(:ret, RetWeb.Endpoint)[:cors_proxy_url]
-      [cors_scheme, cors_port, cors_host] = [:scheme, :port, :host] |> Enum.map(&Keyword.get(cors_proxy_url, &1))
-      is_cors_proxy_url = cors_scheme == Atom.to_string(conn.scheme) && cors_host == conn.host && cors_port == conn.port
+
+      [cors_scheme, cors_port, cors_host] =
+        [:scheme, :port, :host] |> Enum.map(&Keyword.get(cors_proxy_url, &1))
+
+      is_cors_proxy_url =
+        if System.get_env("TURKEY_MODE") do
+          cors_host == conn.host &&
+            cors_scheme == get_req_header(conn, "x-forwarded-proto") |> Enum.at(0)
+        else
+          cors_scheme == Atom.to_string(conn.scheme) && cors_host == conn.host &&
+            cors_port == conn.port
+        end
 
       if is_cors_proxy_url do
-        allowed_origins = Application.get_env(:ret, RetWeb.Endpoint)[:allowed_origins] |> String.split(",")
-
+        allowed_origins =
+          Application.get_env(:ret, RetWeb.Endpoint)[:allowed_origins] |> String.split(",")
         opts =
           ReverseProxyPlug.init(
-            upstream: ip_url,
+            upstream: url,
             allowed_origins: allowed_origins,
             proxy_url: "#{cors_scheme}://#{cors_host}:#{cors_port}",
             # Since we replaced the host with the IP address in ip_url above, we need to force the host
             # used for ssl verification here so that the connection isn't rejected.
             # Note that we have to convert the authority to a charlist, since this uses Erlang's `ssl` module
             # internally, which expects a charlist.
-            client_options: [ssl: [{:server_name_indication, to_charlist(authority)}, {:versions, [:"tlsv1.2"]}]],
-            preserve_host_header: true
+            client_options: [
+              ssl: [{:server_name_indication, to_charlist(authority)}, {:versions, [:"tlsv1.2",:"tlsv1.3"]}]
+            ],
+            # preserve_host_header: true
           )
 
         body = ReverseProxyPlug.read_body(conn)
         is_head = conn |> Conn.get_req_header("x-original-method") == ["HEAD"]
 
-        %Conn{}
-        |> Map.merge(conn)
+        %Conn{}|> Map.merge(conn)
         |> Map.put(
           :method,
           if is_head do
@@ -688,11 +774,6 @@ defmodule RetWeb.PageController do
         )
         # Need to strip path_info since proxy plug reads it
         |> Map.put(:path_info, [])
-        # Since we replaced the host with the IP address in ip_url above, we need to force the host
-        # header back to the original authority so that the proxy destination does not reject our request
-        |> Conn.put_req_header("host", authority)
-        # Some domains disallow access from improper Origins
-        |> Conn.delete_req_header("origin")
         |> ReverseProxyPlug.request(body, opts)
         |> ReverseProxyPlug.response(conn, opts)
       else
@@ -707,12 +788,16 @@ defmodule RetWeb.PageController do
   end
 
   defp render_asset(conn) do
-    static_options = Plug.Static.init(at: "/", from: module_config(:assets_path), gzip: true, brotli: true)
+    static_options =
+      Plug.Static.init(at: "/", from: module_config(:assets_path), gzip: true, brotli: true)
+
     Plug.Static.call(conn, static_options)
   end
 
   defp render_docs(conn) do
-    static_options = Plug.Static.init(at: "/docs", from: module_config(:docs_path), gzip: true, brotli: true)
+    static_options =
+      Plug.Static.init(at: "/docs", from: module_config(:docs_path), gzip: true, brotli: true)
+
     Plug.Static.call(conn, static_options)
   end
 
@@ -754,7 +839,9 @@ defmodule RetWeb.PageController do
 
   defp append_script_csp(conn, nil), do: conn
   defp append_script_csp(conn, ""), do: conn
-  defp append_script_csp(conn, script), do: conn |> append_csp("script-src", csp_for_script(script))
+
+  defp append_script_csp(conn, script),
+    do: conn |> append_csp("script-src", csp_for_script(script))
 
   defp with_script_tags(nil), do: ""
   defp with_script_tags(""), do: ""

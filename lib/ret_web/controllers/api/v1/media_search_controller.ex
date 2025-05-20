@@ -2,6 +2,27 @@ defmodule RetWeb.Api.V1.MediaSearchController do
   use RetWeb, :controller
   use Retry
 
+  def index(conn, %{"source" => source, "filter" => "created", "user" => user} = params)
+    when source in ["rooms"] do
+      account = conn |> Guardian.Plug.current_resource()
+
+      if account && account.account_id == String.to_integer(user) do
+        {:commit, results} =
+          %Ret.MediaSearchQuery{
+            source: "rooms",
+            cursor: params["cursor"] || "1",
+            user: account.account_id,
+            filter: "created",
+            q: params["q"]
+          }
+          |> Ret.MediaSearch.search()
+
+        conn |> render("index.json", results: results)
+      else
+        conn |> send_resp(401, "You can only search created rooms for your own account.")
+      end
+    end
+
   def index(conn, %{"source" => "rooms"} = params) do
     {:commit, results} =
       %Ret.MediaSearchQuery{
@@ -16,7 +37,9 @@ defmodule RetWeb.Api.V1.MediaSearchController do
   end
 
   def index(conn, %{"source" => "sketchfab", "user" => user}) do
-    {:commit, results} = %Ret.MediaSearchQuery{source: "sketchfab", user: user} |> Ret.MediaSearch.search()
+    {:commit, results} =
+      %Ret.MediaSearchQuery{source: "sketchfab", user: user} |> Ret.MediaSearch.search()
+
     conn |> render("index.json", results: results)
   end
 
@@ -73,7 +96,14 @@ defmodule RetWeb.Api.V1.MediaSearchController do
   end
 
   def index(conn, %{"source" => source} = params)
-      when source in ["sketchfab", "tenor", "youtube_videos", "bing_videos", "bing_images", "twitch"] do
+      when source in [
+             "sketchfab",
+             "tenor",
+             "youtube_videos",
+             "bing_videos",
+             "bing_images",
+             "twitch"
+           ] do
     query = %Ret.MediaSearchQuery{
       source: source,
       cursor: params["cursor"],

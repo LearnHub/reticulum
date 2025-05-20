@@ -132,7 +132,10 @@ defmodule Ret.Storage do
   end
 
   def fetch(%CachedFile{} = cached_file) do
-    fetch_at(cached_file, Timex.now() |> Timex.to_naive_datetime() |> NaiveDateTime.truncate(:second))
+    fetch_at(
+      cached_file,
+      Timex.now() |> Timex.to_naive_datetime() |> NaiveDateTime.truncate(:second)
+    )
   end
 
   defp maybe_bump_accessed_at(%CachedFile{accessed_at: accessed_at} = cached_file, time) do
@@ -198,8 +201,10 @@ defmodule Ret.Storage do
   defp migrate(%CachedFile{file_uuid: id, file_key: file_key} = cached_file) do
     with {:ok, _meta, _stream} <- fetch_blob(id, file_key, expiring_file_path()),
          {:ok, uuid} <- Ecto.UUID.cast(id),
-         [_src_file_directory, src_meta_file_path, src_blob_file_path] <- paths_for_uuid(uuid, expiring_file_path()),
-         [dest_file_directory, dest_meta_file_path, dest_blob_file_path] <- paths_for_uuid(uuid, cached_file_path()),
+         [_src_file_directory, src_meta_file_path, src_blob_file_path] <-
+           paths_for_uuid(uuid, expiring_file_path()),
+         [dest_file_directory, dest_meta_file_path, dest_blob_file_path] <-
+           paths_for_uuid(uuid, cached_file_path()),
          :ok <- File.mkdir_p(dest_file_directory),
          :ok <- File.cp(src_meta_file_path, dest_meta_file_path),
          :ok <- File.cp(src_blob_file_path, dest_blob_file_path) do
@@ -228,20 +233,26 @@ defmodule Ret.Storage do
     end
   end
 
-  def promote(nil, _key, _promotion_token, _account) do
+  def promote(id, key, promotion_token, account, require_token \\ true)
+
+  def promote(_id, nil, nil, _account, _require_token) do
+    {:error, :not_allowed}
+  end
+
+  def promote(nil, _key, _promotion_token, _account, _require_token) do
     {:error, :not_found}
   end
 
-  def promote(_id, nil, _promotion_token, _account) do
+  def promote(_id, nil, _promotion_token, _account, _require_token) do
     {:error, :not_allowed}
   end
 
   # Promotes an expiring stored file to a permanently stored file in the specified Account.
-  def promote(id, key, promotion_token, %Account{} = account) do
+  def promote(id, key, promotion_token, %Account{} = account, require_token) do
     # Check if this file has already been promoted
     OwnedFile
     |> Repo.get_by(owned_file_uuid: id)
-    |> promote_or_return_owned_file(id, key, promotion_token, account)
+    |> promote_or_return_owned_file(id, key, promotion_token, account, require_token)
   end
 
   # Promotes multiple files into the given account.
@@ -269,8 +280,15 @@ defmodule Ret.Storage do
     |> Enum.into(%{})
   end
 
-  defp promote_or_return_owned_file(%OwnedFile{} = owned_file, _id, _key, _promotion_token, _account) do
-    {:ok, owned_file}
+  defp promote_or_return_owned_file(
+         %OwnedFile{} = owned_file,
+         _id,
+         _key,
+         _promotion_token,
+         _account,
+         _require_token
+       ) do
+        {:ok, owned_file}
   end
 
   # Promoting a stored file to being owned has two side effects: the file is moved
@@ -278,16 +296,21 @@ defmodule Ret.Storage do
   # OwnedFile record is inserted into the database which includes the decryption key.
   # If the stored file has an associated promotion token, the given promotion token is verified against it.
   # If the given promotion token fails verification, the file is not promoted.
-  defp promote_or_return_owned_file(nil, id, key, promotion_token, account) do
+  defp promote_or_return_owned_file(nil, id, key, promotion_token, account, require_token) do
     with(
       storage_path when is_binary(storage_path) <- module_config(:storage_path),
       {:ok, uuid} <- Ecto.UUID.cast(id),
       [_, meta_file_path, blob_file_path] <- paths_for_uuid(uuid, expiring_file_path()),
-      [dest_path, dest_meta_file_path, dest_blob_file_path] <- paths_for_uuid(uuid, owned_file_path()),
+      [dest_path, dest_meta_file_path, dest_blob_file_path] <-
+        paths_for_uuid(uuid, owned_file_path()),
       [{:ok, _}, {:ok, _}] <- [File.stat(meta_file_path), File.stat(blob_file_path)],
-      %{"content_type" => content_type, "content_length" => content_length, "promotion_token" => actual_promotion_token} <-
+      %{
+        "content_type" => content_type,
+        "content_length" => content_length,
+        "promotion_token" => actual_promotion_token
+      } <-
         File.read!(meta_file_path) |> Poison.decode!(),
-      {:ok} <- check_promotion_token(actual_promotion_token, promotion_token),
+      {:ok} <- (if require_token, do: check_promotion_token(actual_promotion_token, promotion_token), else: {:ok}),
       {:ok} <- check_blob_file_key(blob_file_path, key)
     ) do
       owned_file_params = %{
@@ -303,8 +326,8 @@ defmodule Ret.Storage do
         |> Repo.insert!()
 
       File.mkdir_p!(dest_path)
-      File.rename(meta_file_path, dest_meta_file_path)
-      File.rename(blob_file_path, dest_blob_file_path)
+      File.rename!(meta_file_path, dest_meta_file_path)
+      File.rename!(blob_file_path, dest_blob_file_path)
 
       {:ok, owned_file}
     else
@@ -313,11 +336,13 @@ defmodule Ret.Storage do
     end
   end
 
-  # If an owned file does not have a promotion token associated with it, it can be promoted with any given 
+  # If an owned file does not have a promotion token associated with it, it can be promoted with any given
   # promotion token, including nil.
   defp check_promotion_token(nil, _token), do: {:ok}
   defp check_promotion_token(actual_token, token) when actual_token == token, do: {:ok}
-  defp check_promotion_token(actual_token, token) when actual_token != token, do: {:error, :invalid_key}
+
+  defp check_promotion_token(actual_token, token) when actual_token != token,
+    do: {:error, :invalid_key}
 
   # Vacuums up TTLed out files
   def vacuum do
@@ -336,7 +361,9 @@ defmodule Ret.Storage do
           seconds_since_access = DateTime.diff(now, atime_datetime)
 
           if seconds_since_access > ttl do
-            Logger.info("Stored Files: Removing #{blob_file} after #{seconds_since_access}s since last access.")
+            Logger.info(
+              "Stored Files: Removing #{blob_file} after #{seconds_since_access}s since last access."
+            )
 
             File.rm!(blob_file)
             File.rm(blob_file |> String.replace_suffix(".blob", ".meta.json"))
@@ -360,7 +387,10 @@ defmodule Ret.Storage do
     end)
   end
 
-  defp remove_underlying_assets(%{cached_file: %CachedFile{file_uuid: id} = cached_file, path: path}) do
+  defp remove_underlying_assets(%{
+         cached_file: %CachedFile{file_uuid: id} = cached_file,
+         path: path
+       }) do
     try do
       {:ok, uuid} = Ecto.UUID.cast(id)
       [_file_path, meta_file_path, blob_file_path] = paths_for_uuid(uuid, path)
@@ -456,17 +486,20 @@ defmodule Ret.Storage do
   defp move_file_to_expiring_storage(uuid) do
     with(
       [_, meta_file_path, blob_file_path] <- paths_for_uuid(uuid, owned_file_path()),
-      [dest_path, dest_meta_file_path, dest_blob_file_path] <- paths_for_uuid(uuid, expiring_file_path())
+      [dest_path, dest_meta_file_path, dest_blob_file_path] <-
+        paths_for_uuid(uuid, expiring_file_path())
     ) do
       File.mkdir_p!(dest_path)
-      File.rename(meta_file_path, dest_meta_file_path)
-      File.rename(blob_file_path, dest_blob_file_path)
+      File.rename!(meta_file_path, dest_meta_file_path)
+      File.rename!(blob_file_path, dest_blob_file_path)
     end
   end
 
   @spec rm_files_for_owned_file(OwnedFile.t()) :: :ok
   def rm_files_for_owned_file(%OwnedFile{} = owned_file) do
-    [_, meta_file_path, blob_file_path] = paths_for_uuid(owned_file.owned_file_uuid, owned_file_path())
+    [_, meta_file_path, blob_file_path] =
+      paths_for_uuid(owned_file.owned_file_uuid, owned_file_path())
+
     File.rm!(meta_file_path)
     File.rm!(blob_file_path)
   end
@@ -476,13 +509,11 @@ defmodule Ret.Storage do
     ext = MIME.extensions(content_type) |> List.first()
     filename = [id, ext] |> Enum.reject(&is_nil/1) |> Enum.join(".")
 
-    "#{file_host}/files/#{filename}#{
-      if token do
-        "?" <> URI.encode_query(token: token)
-      else
-        ""
-      end
-    }"
+    "#{file_host}/files/#{filename}#{if token do
+      "?" <> URI.encode_query(token: token)
+    else
+      ""
+    end}"
     |> URI.parse()
   end
 
@@ -499,7 +530,12 @@ defmodule Ret.Storage do
   end
 
   defp encrypt_stream_to_file(source_stream, source_size, destination_path, key) do
-    Ret.Crypto.encrypt_stream_to_file(source_stream, source_size, destination_path, key |> Ret.Crypto.hash())
+    Ret.Crypto.encrypt_stream_to_file(
+      source_stream,
+      source_size,
+      destination_path,
+      key |> Ret.Crypto.hash()
+    )
   end
 
   @spec paths_for_owned_file(OwnedFile.t()) :: [String.t(), ...]
@@ -508,7 +544,8 @@ defmodule Ret.Storage do
   end
 
   defp paths_for_uuid(uuid, subpath) do
-    path = "#{module_config(:storage_path)}/#{subpath}/#{String.slice(uuid, 0, 2)}/#{String.slice(uuid, 2, 2)}"
+    path =
+      "#{module_config(:storage_path)}/#{subpath}/#{String.slice(uuid, 0, 2)}/#{String.slice(uuid, 2, 2)}"
 
     blob_file_path = "#{path}/#{uuid}.blob"
     meta_file_path = "#{path}/#{uuid}.meta.json"
@@ -516,7 +553,11 @@ defmodule Ret.Storage do
     [path, meta_file_path, blob_file_path]
   end
 
-  def duplicate_and_transform(%OwnedFile{owned_file_uuid: id, key: key}, %Account{} = account, transform)
+  def duplicate_and_transform(
+        %OwnedFile{owned_file_uuid: id, key: key},
+        %Account{} = account,
+        transform
+      )
       when is_function(transform, 2) do
     {:ok,
      %{
@@ -555,7 +596,9 @@ defmodule Ret.Storage do
   end
 
   def duplicate(%OwnedFile{} = owned_file, %Account{} = account) do
-    duplicate_and_transform(owned_file, account, fn stream, content_length -> {stream, content_length} end)
+    duplicate_and_transform(owned_file, account, fn stream, content_length ->
+      {stream, content_length}
+    end)
   end
 
   defp download!(url) do

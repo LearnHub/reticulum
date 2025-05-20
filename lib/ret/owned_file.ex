@@ -4,16 +4,18 @@ defmodule Ret.OwnedFile do
   import Ecto.Changeset
   alias Ret.{Repo, OwnedFile, Account}
 
+  @type t :: %__MODULE__{}
+
   @schema_prefix "ret0"
   @primary_key {:owned_file_id, :id, autogenerate: true}
-
   schema "owned_files" do
-    field(:owned_file_uuid, :string)
-    field(:key, :string)
-    field(:content_type, :string)
-    field(:content_length, :integer)
-    field(:state, OwnedFile.State)
-    belongs_to(:account, Account, references: :account_id)
+    field :owned_file_uuid, :string
+    field :key, :string
+    field :content_type, :string
+    field :content_length, :integer
+    field :state, OwnedFile.State
+
+    belongs_to :account, Account, references: :account_id
 
     timestamps()
   end
@@ -34,27 +36,52 @@ defmodule Ret.OwnedFile do
   end
 
   def inactive() do
-    OwnedFile
-    |> where(state: "inactive")
-    |> Repo.all()
+    Repo.all(from OwnedFile, where: [state: ^:inactive])
   end
 
   def set_active(owned_file_uuid, account_id) do
     get_by_uuid_and_account(owned_file_uuid, account_id) |> set_state(:active)
+
+    case get_by_uuid_and_account(owned_file_uuid, account_id) do
+      nil ->
+        {:error, :file_not_found}
+
+      owned_file ->
+        set_state(owned_file, :active)
+    end
   end
 
   def set_inactive(owned_file_uuid, account_id) do
-    get_by_uuid_and_account(owned_file_uuid, account_id) |> set_state(:inactive)
+    case get_by_uuid_and_account(owned_file_uuid, account_id) do
+      nil ->
+        {:error, :file_not_found}
+
+      owned_file ->
+        set_state(owned_file, :inactive)
+    end
   end
 
+  def set_inactive(owned_file_uuid) when is_binary(owned_file_uuid) do
+    case get_by_uuid(owned_file_uuid) do
+      nil ->
+        {:error, :file_not_found}
+
+      owned_file ->
+        set_state(owned_file, :inactive)
+    end
+  end
+
+  @spec set_inactive(Ret.OwnedFile.t()) :: any()
   def set_inactive(%OwnedFile{} = owned_file) do
     set_state(owned_file, :inactive)
   end
 
   def get_by_uuid_and_account(owned_file_uuid, account_id) do
-    OwnedFile
-    |> where(owned_file_uuid: ^owned_file_uuid, account_id: ^account_id)
-    |> Repo.one()
+    Repo.one(from OwnedFile, where: [owned_file_uuid: ^owned_file_uuid, account_id: ^account_id])
+  end
+
+  def get_by_uuid(owned_file_uuid) do
+    Repo.one(from OwnedFile, where: [owned_file_uuid: ^owned_file_uuid])
   end
 
   defp set_state(nil, _state), do: nil

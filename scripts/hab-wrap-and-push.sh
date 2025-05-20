@@ -10,17 +10,17 @@ apk add curl
 org="biome-sh";repo="biome"
 ver=$(curl -s https://api.github.com/repos/$org/$repo/releases/latest | grep "tag_name" | awk '{print substr($2, 2, length($2)-3)}')
 dl="https://github.com/$org/$repo/releases/download/$ver/bio-${ver#"v"}-x86_64-linux.tar.gz"
-echo "[info] getting bio from: $dl" && curl -L -o bio.gz $dl && tar -xf bio.gz 
+echo "[info] getting bio from: $dl" && curl -L -o bio.gz $dl && tar -xf bio.gz
 cp ./bio /usr/bin/bio && bio --version
 
-bio origin key generate mozillareality
-habCacheKeyPath="/hab/cache/keys"
-echo "habCacheKeyPath: $habCacheKeyPath"
-mkdir -p $habCacheKeyPath
-echo $BLDR_HAB_TOKEN > $habCacheKeyPath/mozillareality_hab
-echo $BLDR_RET_TOKEN > $habCacheKeyPath/mozillareality_ret
 export HAB_ORIGIN=mozillareality
-export HAB_ORIGIN_KEYS=mozillareality_hab
+
+mkdir -p /hab/cache/keys/
+mkdir -p ./hab/cache/keys/
+echo $BLDR_RET_PUB_B64 | base64 -d > /hab/cache/keys/mozillareality-20190117233449.pub
+echo $BLDR_RET_PUB_B64 | base64 -d > ./hab/cache/keys/mozillareality-20190117233449.pub
+echo $BLDR_HAB_PVT_B64 | base64 -d > /hab/cache/keys/mozillareality-20190117233449.sig.key
+echo $BLDR_HAB_PVT_B64 | base64 -d > /hab/cache/keys/mozillareality-20190117233449.sig.key
 
 echo "### build hab pkg"
 export HAB_AUTH_TOKEN=$BLDR_HAB_TOKEN
@@ -37,16 +37,17 @@ pkg_maintainer="Mozilla Mixed Reality <mixreality@mozilla.com>"
 pkg_upstream_url="http://github.com/mozilla/reticulum"
 pkg_license=('MPL-2.0')
 pkg_deps=(
-    core/coreutils/8.30/20190115012313
-    core/bash/4.4.19/20190115012619
-    core/which/2.21/20190430084037
-    mozillareality/erlang/22.0
+    core/coreutils/8.32/20220311101609
+    core/bash/5.1/20220801055216
+    core/which/2.21/20220311145823
+    core/zlib/1.2.11/20220311082914
+    core/openssl/1.0.2zb/20220311111046
 )
 pkg_build_deps=(
-    core/coreutils/8.30/20190115012313
+    core/coreutils/8.32/20220311101609
     core/git/2.23.0
-    mozillareality/erlang/22.0
-    core/elixir/1.8.0
+    mozillareality/erlang/23.3.4.18
+    mozillareality/elixir/1.14.3
 )
 pkg_exports=(
    [port]=phx.port
@@ -58,7 +59,7 @@ do_verify() {
 do_prepare() {
     export LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
     export MIX_ENV=prod
-    export RELEASE_VERSION="1.0.$(echo $pkg_prefix | cut -d '/' -f 7)" 
+    export RELEASE_VERSION="1.0.$(echo $pkg_prefix | cut -d '/' -f 7)"
 
     # Rebar3 will hate us otherwise because it looks for
     # /usr/bin/env when it does some of its compiling
@@ -76,7 +77,7 @@ do_build() {
 }
 do_install() {
     rm -rf _build/prod/rel/ret/releases
-    MIX_ENV=prod mix distillery.release
+    MIX_ENV=prod mix release
     # TODO 1.9 releases chmod 0655 _build/prod/rel/ret/bin/*
     cp -a _build/prod/rel/ret/* ${pkg_prefix}
 
@@ -96,7 +97,7 @@ do_end() {
     return 0
 }
 EOF
-bio pkg build --cache-key-path $habCacheKeyPath -k mozillareality .
+bio pkg build -k mozillareality .
 
 ### upload
 echo "### upload hab pkg"

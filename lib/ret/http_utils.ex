@@ -45,7 +45,10 @@ defmodule Ret.HttpUtils do
     headers =
       if options[:append_browser_user_agent] do
         options[:headers] ++
-          [{"User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0"}]
+          [
+            {"User-Agent",
+             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0"}
+          ]
       else
         options[:headers]
       end
@@ -57,7 +60,11 @@ defmodule Ret.HttpUtils do
         []
       end
 
-    retry with: exponential_backoff() |> randomize |> cap(options[:cap_ms]) |> expiry(options[:expiry_ms]) do
+    retry with:
+            exponential_backoff()
+            |> randomize
+            |> cap(options[:cap_ms])
+            |> expiry(options[:expiry_ms]) do
       http_client = module_config(:http_client) || HTTPoison
 
       case http_client.request(verb, url, body, headers,
@@ -168,4 +175,20 @@ defmodule Ret.HttpUtils do
   defp module_config(key) do
     Application.get_env(:ret, __MODULE__)[key]
   end
+
+  def join_smart(enum) do
+    Enum.reduce(enum, "", fn(x, acc) ->
+      x = cond do
+        !x -> nil
+        is_binary(x) -> String.trim(x)
+        true -> "#{x}"
+      end
+      if x && x != "" do
+        if acc && acc != "", do: acc <> " — " <> x, else: x
+      else
+        acc
+      end
+    end)
+  end
+
 end

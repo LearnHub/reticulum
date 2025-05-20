@@ -3,7 +3,7 @@ defmodule RetWeb.Email do
   alias Ret.{AppConfig}
 
   def auth_email(to_address, signin_args) do
-    app_name = AppConfig.get_cached_config_value("translations|en|app-name")
+    app_name = AppConfig.get_cached_config_value("translations|en|app-name") || RetWeb.Endpoint.host()
     app_full_name = AppConfig.get_cached_config_value("translations|en|app-full-name") || app_name
     admin_email = Application.get_env(:ret, Ret.Account)[:admin_email]
     custom_login_subject = AppConfig.get_cached_config_value("auth|login_subject")
@@ -17,9 +17,7 @@ defmodule RetWeb.Email do
     email_body =
       if string_is_nil_or_empty(custom_login_body),
         do:
-          "To sign-in to #{app_name}, please visit the link below. If you did not make this request, please ignore this e-mail.\n\n #{
-            RetWeb.Endpoint.url()
-          }/?#{URI.encode_query(signin_args)}",
+          "To sign-in to #{app_name}, please visit the link below. If you did not make this request, please ignore this e-mail.\n\n #{RetWeb.Endpoint.url()}/?#{URI.encode_query(signin_args)}",
         else: add_magic_link_to_custom_login_body(custom_login_body, signin_args)
 
     email =
