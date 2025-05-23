@@ -28,7 +28,7 @@ defmodule Ret.AppConfig do
     },
     "auth" => %{
       "use_oidc" => true,
-      "oidc_button_label" = > "Sign in to Eduverse",
+      "oidc_button_label" => "Sign in to Eduverse",
     },
     "images" => %{
       "logo" => "https://avnfs.com/5KMdC4w_aIQMLjkw5BPAcd6QXU6DitEerl53RYl3k7U?size=17357&type=image%2Fsvg%2Bxml&name=EduverseLogoAndText.svg",
