@@ -11,8 +11,33 @@ defmodule Ret.AppConfig do
   @config_defaults %{
     "features" => %{
       "max_room_size" => 50,
-      "default_room_size" => 24
-    }
+      "default_room_size" => 24,
+      "public_api_access" => true,
+      "hide_powered_by" => true,
+      "permissive_rooms" => true,
+    },
+    "translations" => %{
+      "en" => %{
+        "app-name" => "Eduverse",
+        "app-description" => "Go beyond the classroom and let your students experience the impossible",
+        "app-tagline" => "Where will you learn today?",
+        "company-name" => "Avantis Education",
+        "share-hashtag" => "#eduverse",
+        "contact-email" => "support@avantiseducation.com",
+      }
+    },
+    "auth" => %{
+      "use_oidc" => true,
+      "oidc_button_label" = > "Sign in to Eduverse",
+    },
+    "images" => %{
+      "logo" => "https://avnfs.com/5KMdC4w_aIQMLjkw5BPAcd6QXU6DitEerl53RYl3k7U?size=17357&type=image%2Fsvg%2Bxml&name=EduverseLogoAndText.svg",
+      "logo_dark" => "https://avnfs.com/iuU0eR6BW6ZSqC3goaELRRiCOlp_4Ya1rlw5_Kmj4FA?size=17541&type=image%2Fsvg%2Bxml&name=EduverseLogoAndText-White.svg",
+      "favicon" => "https://avnfs.com/gDfODKA_jWu59tpdjr9ZkCInpkrrvtiTZeCBepevf2E?size=1328&type=image%2Fpng&name=favicon-32x32.png",
+      "home_background" => "https://avnfs.com/msB-zfYc_tFHgHiJHa9bUg5MmyXbykSlzTFAUsm4xDg?size=93904&type=image%2Fjpeg&name=Screenshot.jpeg",
+      "app_icon" => "https://avnfs.com/SFpS7q4yjxMNCIIv3fB2QKgNto7spzlRs5n6fZ3S7wg?size=10658&type=image%2Fpng&name=EduverseLogo256.png",
+      "app_thumbnail" => "https://avnfs.com/5KMdC4w_aIQMLjkw5BPAcd6QXU6DitEerl53RYl3k7U?size=17357&type=image%2Fsvg%2Bxml&name=EduverseLogoAndText.svg",
+    },
   }
 
   schema "app_configs" do
