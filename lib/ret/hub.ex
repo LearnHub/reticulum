@@ -157,7 +157,8 @@ defmodule Ret.Hub do
             creator_assignment_token: SecureRandom.hex(),
             embed_token: SecureRandom.hex(),
             member_permissions: default_member_permissions(),
-            room_size: AppConfig.get_cached_config_value("features|default_room_size")
+            room_size: AppConfig.get_cached_config_value("features|default_room_size"),
+            user_data: %{},
           },
           params
         )
