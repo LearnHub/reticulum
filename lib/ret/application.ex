@@ -1,23 +1,32 @@
 defmodule Ret.Application do
   use Application
+  require Logger
 
   import Cachex.Spec, only: [expiration: 1, fallback: 1, warmer: 1]
 
   def start(_type, _args) do
+    Logger.info("Application started")
     Application.load(:ret)
+    Logger.info("Application loaded")
     EctoBootMigration.start_dependencies()
+    Logger.info("EctoBootMigration dependencies started")
 
     repos_pids =
       Ret.Locking.exec_if_session_lockable("ret_migration", fn ->
+        Logger.info("Entered ret_migration section")
+
         repos_pids = EctoBootMigration.start_repos([Ret.SessionLockRepo])
+        Logger.info("EctoBootMigration repos started")
 
         # Note the main Repo database is used here, since the session locking database
         # name may be a proxy database in pgbouncer which doesn't actually exist.
         db_name = Application.get_env(:ret, Ret.Repo)[:database]
+        Logger.info("DB name '#{db_name}'")
 
         # Can't check mix_env here, so check db name
         if db_name !== "ret_test" do
           coturn_enabled = Ret.Coturn.enabled?()
+          Logger.info("coturn_enabled = #{coturn_enabled}")
 
           Ecto.Adapters.SQL.query!(Ret.SessionLockRepo, "CREATE SCHEMA IF NOT EXISTS ret0")
 
@@ -31,6 +40,7 @@ defmodule Ret.Application do
           )
 
           priv_path = Path.join(["#{:code.priv_dir(:ret)}", "repo", "migrations"])
+          Logger.info("priv_path = #{priv_path}")
 
           # Disallow stop of the application via SIGTERM until migrations are finished.
           #
@@ -39,7 +49,9 @@ defmodule Ret.Application do
           Ret.DelayStopSignalHandler.delay_stop()
 
           try do
+            Logger.info("Running migrations...")
             Ecto.Migrator.run(Ret.SessionLockRepo, priv_path, :up, all: true, prefix: "ret0")
+            Logger.info("Migrations complete")
           after
             Ret.DelayStopSignalHandler.allow_stop()
           end
@@ -49,15 +61,21 @@ defmodule Ret.Application do
       end)
 
     if repos_pids do
+      Logger.info("Rotating secrets...")
       # Ensure there are some TURN secrets in the database, so that if system is idle
       # the cron isn't indefinitely skipped and nobody can join rooms.
       Ret.Coturn.rotate_secrets(true, Ret.SessionLockRepo)
+      Logger.info("Secrets rotated")
 
+      Logger.info("Calling stop_repos")
       EctoBootMigration.stop_repos(repos_pids)
     end
 
+    Logger.info("Connecting Statix...")
     :ok = Ret.Statix.connect()
+    Logger.info("Statix connected")
     {:ok, _} = Logger.add_backend(Sentry.LoggerBackend)
+    Logger.info("Sentry added as logger backend")
 
     children = [
       {Phoenix.PubSub, [name: Ret.PubSub, adapter: Phoenix.PubSub.PG2, pool_size: 4]},
@@ -232,6 +250,7 @@ defmodule Ret.Application do
       }
     ]
 
+    Logger.info("Starting supervisor")
     Supervisor.start_link(children, name: Ret.Supervisor, strategy: :one_for_one)
   end
 
