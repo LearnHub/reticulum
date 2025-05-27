@@ -8,6 +8,8 @@ defmodule RetWeb.AuthChannel do
 
   intercept ["auth_credentials"]
 
+  require Logger
+
   def join("auth:" <> _topic_key, _payload, socket) do
     # Expire channel in 5 minutes
     Process.send_after(self(), :channel_expired, 60 * 1000 * 5)
@@ -24,10 +26,19 @@ defmodule RetWeb.AuthChannel do
       socket = socket |> assign(:used, true)
 
       account = email |> Account.account_for_email()
+      # AVN: Admin account should already exist
+      if !account do
+        Logger.info("No user with email '#{email}' (one should be created)")
+      end
       account_disabled = account && account.state == :disabled
-      # Accounts can only be created if the general setting is enabled and the server is not in OIDC mode
-      can_create_email_accounts = can?(nil, create_account(nil)) && !AppConfig.get_config_bool("auth|use_oidc")
-
+      if account_disabled do
+        Logger.warning("Account for email '#{email}' is disabled")
+      end
+      # Accounts can only be created if the general setting is enabled
+      can_create_email_accounts = can?(nil, create_account(nil))
+      if !can_create_email_accounts do
+        Logger.warning("Account creation is forbidden")
+      end
       if !account_disabled && (can_create_email_accounts || !!account) do
         # Create token + send email
         %LoginToken{token: token, payload_key: payload_key} =
@@ -49,10 +60,14 @@ defmodule RetWeb.AuthChannel do
         Statix.increment("ret.emails.auth.attempted", 1)
 
         if RetWeb.Email.enabled?() do
+          Logger.info("Sending auth email to '#{email}'...")
           RetWeb.Email.auth_email(email, signin_args) |> Ret.Mailer.deliver_now()
+          Logger.info("Email sent")
         end
 
         Statix.increment("ret.emails.auth.sent", 1)
+      else
+        Logger.warning("Failed to process auth_request")
       end
 
       {:noreply, socket}
@@ -106,9 +121,9 @@ defmodule RetWeb.AuthChannel do
   defp broadcast_credentials_and_payload(nil, _payload, _socket), do: nil
 
   defp broadcast_credentials_and_payload(identifier_hash, payload, socket) do
-    # Accounts can only be created if the general setting is enabled and the server is not in OIDC mode
-    can_create_email_accounts = can?(nil, create_account(nil)) && !AppConfig.get_config_bool("auth|use_oidc")
-    account = identifier_hash |> Account.account_for_login_identifier_hash(can_create_email_accounts)
+    account =
+      identifier_hash |> Account.account_for_login_identifier_hash(can?(nil, create_account(nil)))
+
     credentials = account |> Account.credentials_for_account()
     broadcast!(socket, "auth_credentials", %{credentials: credentials, payload: payload})
   end
