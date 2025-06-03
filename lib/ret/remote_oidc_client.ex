@@ -73,7 +73,7 @@ defmodule Ret.RemoteOIDCClient do
   end
 
   def get_permitted_claims() do
-    Application.get_env(:ret, __MODULE__)[:permitted_claims]
+    Application.get_env(:ret, __MODULE__)[:permitted_claims] |> String.split(",") |> Enum.map(&String.trim/1)
   end
 
   def get_client_id() do
