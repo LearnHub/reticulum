@@ -13,7 +13,7 @@ jobs:
     uses: Hubs-Foundation/hubs-ops/.github/workflows/turkeyGitops.yml@master
     with:
       registry: hubsfoundation
-      dockerfile: TurkeyDockerfile
+      dockerfile: Dockerfile
       bio_script_path: scripts/hab-wrap-and-push.sh
       qa_channel_name: polycosm-unstable-a
       hc_channel_name: polycosm-stable-a
