@@ -889,7 +889,7 @@ defmodule Ret.MediaSearch do
       attributions: avatar.attributions,
       images: %{
         preview: %{
-          url: thumbnail || "https://asset-bundles-prod.reticulum.io/bots/avatar_unavailable.png",
+          url: thumbnail || "https://avnfs.com/fWk_rQkO4X7LRuYRwbdCYtM90QGVZHRToFbqUuiTfSc?size=67655&type=image%2Fpng&name=avatar_unavailable.png",
           width: 720,
           height: 1280
         }
@@ -914,7 +914,7 @@ defmodule Ret.MediaSearch do
       allow_remixing: avatar_listing.avatar !== nil and avatar_listing.avatar.allow_remixing,
       images: %{
         preview: %{
-          url: thumbnail || "https://asset-bundles-prod.reticulum.io/bots/avatar_unavailable.png",
+          url: thumbnail || "https://avnfs.com/fWk_rQkO4X7LRuYRwbdCYtM90QGVZHRToFbqUuiTfSc?size=67655&type=image%2Fpng&name=avatar_unavailable.png",
           width: 720,
           height: 1280
         }
