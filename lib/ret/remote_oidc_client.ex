@@ -63,6 +63,11 @@ defmodule Ret.RemoteOIDCClient do
     get_openid_configuration() |> Map.get("userinfo_endpoint")
   end
 
+  def get_revocation_endpoint() do
+    # Optional in spec (RFC 7009)
+    get_openid_configuration() |> Map.get("revocation_endpoint")
+  end
+
   def get_scopes_supported() do
     # Optional in spec
     get_openid_configuration() |> Map.get("scopes_supported")

@@ -175,6 +175,10 @@ defmodule RetWeb.Router do
 
       post "/twitter/tweets", Api.V1.TwitterController, :tweets
 
+      # AVN: OIDC access token renewal for Eduverse Connect passthrough
+      post "/oidc/refresh", Api.V1.OIDCSessionController, :refresh
+      post "/oidc/sign_out", Api.V1.OIDCSessionController, :sign_out
+
       resources "/projects", Api.V1.ProjectController,
         only: [:index, :show, :create, :update, :delete] do
         post "/publish", Api.V1.ProjectController, :publish

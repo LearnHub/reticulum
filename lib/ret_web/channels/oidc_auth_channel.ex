@@ -6,7 +6,7 @@ defmodule RetWeb.OIDCAuthChannel do
   use RetWeb, :channel
   import Canada, only: [can?: 2]
 
-  alias Ret.{Account, OAuthToken, RemoteOIDCClient, RemoteOIDCToken, AppConfig}
+  alias Ret.{Account, OAuthToken, OIDCSession, RemoteOIDCClient, RemoteOIDCToken, AppConfig}
 
   intercept(["auth_credentials"])
 
@@ -88,7 +88,7 @@ defmodule RetWeb.OIDCAuthChannel do
           %{
             "access_token" => access_token,
             "id_token" => raw_id_token
-          }} <- fetch_oidc_tokens(code),
+          } = oidc_tokens} <- fetch_oidc_tokens(code),
          {:ok,
           %{
             "aud" => _aud,
@@ -113,6 +113,7 @@ defmodule RetWeb.OIDCAuthChannel do
         identifier_hash,
         %{oidc: filtered_claims},
         %{session_id: session_id, nonce: nonce},
+        oidc_tokens,
         socket
       )
 
@@ -177,12 +178,19 @@ defmodule RetWeb.OIDCAuthChannel do
     {:noreply, socket}
   end
 
-  defp broadcast_credentials_and_payload(nil, _user_info, _verification_info, _socket), do: nil
+  defp broadcast_credentials_and_payload(nil, _user_info, _verification_info, _oidc_tokens, _socket), do: nil
 
-  defp broadcast_credentials_and_payload(identifier_hash, user_info, verification_info, socket) do
+  defp broadcast_credentials_and_payload(identifier_hash, user_info, verification_info, oidc_tokens, socket) do
     account_creation_enabled = can?(nil, create_account(nil))
     account = identifier_hash |> Account.account_for_login_identifier_hash(account_creation_enabled)
     credentials = account |> Account.credentials_for_account()
+
+    # AVN: Keep the refresh token server-side; the client gets a key to renew its access token with
+    user_info =
+      case account && OIDCSession.create_for_account(account, oidc_tokens) do
+        session_key when is_binary(session_key) -> put_in(user_info, [:oidc, :oidc_session], session_key)
+        _ -> user_info
+      end
 
     broadcast!(socket, "auth_credentials", %{
       credentials: credentials,
